@@ -1,9 +1,10 @@
 import * as React from 'react';
 import Enzyme, { mount } from 'enzyme';
 import Adapter from 'enzyme-adapter-react-16';
-import withValidationn from '../../src/hocs/validation';
+import withValidation from '../../src/hocs/validation';
 import RefId from 'canner-ref-id';
 
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 Enzyme.configure({ adapter: new Adapter() });
 
@@ -21,7 +22,7 @@ describe('withValidation', () => {
       onDeploy,
       removeOnDeploy
     }
-    WrapperComponent = withValidationn(MockComponent);
+    WrapperComponent = withValidation(MockComponent);
   });
 
   it('should error state = false', () => {
@@ -42,7 +43,7 @@ describe('withValidation', () => {
     expect(onDeploy).toBeCalledWith('posts', wrapper.instance().validate);
   });
 
-  it('should pass validation', () => {
+  it('should pass validation', async () => {
     const result = {
       data: {
         0: { url: 'https://'}
@@ -50,16 +51,16 @@ describe('withValidation', () => {
     };
     const wrapper =  mount(<WrapperComponent
       {...props}
-      onDeploy={jest.fn().mockImplementation((_, fn) => (fn(result)))}
       required
     />);
+    await wrapper.instance().validate(result)
     expect(wrapper.state()).toEqual({
       error: false,
       errorInfo: []
     })
   });
 
-  it('should not pass required validation', () => {
+  it('should not pass required validation', async () => {
     const result = {
       data: {
         0: { url: ''}
@@ -67,9 +68,9 @@ describe('withValidation', () => {
     };
     const wrapper =  mount(<WrapperComponent
       {...props}
-      onDeploy={jest.fn().mockImplementation((_, fn) => (fn(result)))}
       required
     />);
+    await wrapper.instance().validate(result)
     expect(wrapper.state()).toEqual({
       error: true,
       errorInfo: [{
@@ -78,7 +79,7 @@ describe('withValidation', () => {
     })
   });
 
-  it('should not pass ajv validation', () => {
+  it('should not pass ajv validation', async () => {
     const result = {
       data: {
         0: { url: 'imgurl.com'}
@@ -86,10 +87,10 @@ describe('withValidation', () => {
     };
     const wrapper =  mount(<WrapperComponent
       {...props}
-      onDeploy={jest.fn().mockImplementation((_, fn) => (fn(result)))}
       required
-      validation={{pattern: '^http://[.]+'}}
+      validation={{schema: {pattern: '^http://[.]+'}}}
     />);
+    await wrapper.instance().validate(result)
     expect(wrapper.state()).toMatchObject({
       error: true,
       errorInfo: [{
@@ -98,7 +99,7 @@ describe('withValidation', () => {
     })
   });
 
-  it('should not pass ajv validation with custom error message', () => {
+  it('should not pass ajv validation with custom error message', async () => {
     const result = {
       data: {
         0: { url: 'imgurl.com'}
@@ -107,10 +108,10 @@ describe('withValidation', () => {
     const errorMessage = 'custom error';
     const wrapper =  mount(<WrapperComponent
       {...props}
-      onDeploy={jest.fn().mockImplementation((_, fn) => (fn(result)))}
       required
-      validation={{pattern: '^http://[.]+', errorMessage}}
+      validation={{schema: {pattern: '^http://[.]+'}, errorMessage}}
     />);
+    await wrapper.instance().validate(result)
     expect(wrapper.state()).toMatchObject({
       error: true,
       errorInfo: [{
@@ -119,7 +120,7 @@ describe('withValidation', () => {
     })
   });
 
-  it('should pass ajv validation if empty', () => {
+  it('should pass ajv validation if empty', async () => {
     const result = {
       data: {
         0: { url: ''}
@@ -127,16 +128,17 @@ describe('withValidation', () => {
     };
     const wrapper =  mount(<WrapperComponent
       {...props}
-      onDeploy={jest.fn().mockImplementation((_, fn) => (fn(result)))}
-      validation={{pattern: '^http://[.]+'}}
+      validation={{schema: {pattern: '^http://[.]+'}}}
     />);
+    await wrapper.instance().validate(result)
     expect(wrapper.state()).toMatchObject({
       error: false,
       errorInfo: []
     })
   });
 
-  it('should use custom validation', () => {
+  // Synchronous functions
+  it('should use customized validator with error message', async () => {
     const result = {
       data: {
         0: { url: ''}
@@ -144,25 +146,245 @@ describe('withValidation', () => {
     };
     const wrapper =  mount(<WrapperComponent
       {...props}
-      onDeploy={jest.fn().mockImplementation((_, fn) => (fn(result)))}
       validation={
         {
-          validator: (content, reject) => {
+          validator: (content) => {
             if (!content) {
-              return reject('should be required');
+              return 'error message as return value';
             }
           }
         }
       }
     />);
+    await wrapper.instance().validate(result)
     expect(wrapper.state()).toMatchObject({
       error: true,
       errorInfo: [{
-        message: 'should be required'
+        message: 'error message as return value'
       }]
     })
   });
 
+  it('should use customized validator with throwing error', async () => {
+    const result = {
+      data: {
+        0: { url: ''}
+      }
+    };
+    const wrapper =  mount(<WrapperComponent
+      {...props}
+      validation={
+        {
+          validator: () => {
+              throw 'Throw error'
+          }
+        }
+      }
+    />);
+    await wrapper.instance().validate(result)
+    expect(wrapper.state()).toMatchObject({
+      error: true,
+      errorInfo: [{
+        message: 'Throw error'
+      }]
+    })
+  });
+
+  it('should use customized validator with void return', async () => {
+    const result = {
+      data: {
+        0: { url: ''}
+      }
+    };
+    const wrapper =  mount(<WrapperComponent
+      {...props}
+      validation={
+        {
+          validator: () => {}
+        }
+      }
+    />);
+    await wrapper.instance().validate(result)
+    expect(wrapper.state()).toMatchObject({
+      error: false,
+      errorInfo: []
+    })
+  });
+
+  it('validator is not a function', async () => {
+    const result = {
+      data: {
+        0: { url: ''}
+      }
+    };
+    const wrapper =  mount(<WrapperComponent
+      {...props}
+      validation={
+        {
+          validator: 'validator'
+        }
+      }
+    />);
+    await wrapper.instance().validate(result)
+    expect(wrapper.state()).toMatchObject({
+      error: true,
+      errorInfo: [{
+        message: 'Validator should be a function'
+      }]
+    })
+  });
+
+  // Async-await functions
+  it('should use customized async validator with error message', async () => {
+    const result = {
+      data: {
+        0: { url: ''}
+      }
+    };
+    const wrapper =  mount(<WrapperComponent
+      {...props}
+      validation={
+        {
+          validator: async (content) => {
+            await sleep(5)
+            if (!content) {
+              return 'error message as return value';
+            }
+          }
+        }
+      }
+    />);
+    await wrapper.instance().validate(result)
+    expect(wrapper.state()).toMatchObject({
+      error: true,
+      errorInfo: [{
+        message: 'error message as return value'
+      }]
+    })
+  });
+
+  it('should use customized async validator with throwing error', async () => {
+    const result = {
+      data: {
+        0: { url: ''}
+      }
+    };
+    const wrapper =  mount(<WrapperComponent
+      {...props}
+      validation={
+        {
+          validator: async () => {
+            await sleep(5)
+            throw 'Throw error'
+          }
+        }
+      }
+    />);
+    await wrapper.instance().validate(result)
+    expect(wrapper.state()).toMatchObject({
+      error: true,
+      errorInfo: [{
+        message: 'Throw error'
+      }]
+    })
+  });
+
+  it('should use customized async validator with void return', async () => {
+    const result = {
+      data: {
+        0: { url: ''}
+      }
+    };
+    const wrapper =  mount(<WrapperComponent
+      {...props}
+      validation={
+        {
+          validator: async () => { await sleep(5) }
+        }
+      }
+    />);
+    await wrapper.instance().validate(result)
+    expect(wrapper.state()).toMatchObject({
+      error: false,
+      errorInfo: []
+    })
+  });
+
+  // Function with promise operation
+  it('should use customized validator with a Promise<string>', async () => {
+    const result = {
+      data: {
+        0: { url: ''}
+      }
+    };
+    const wrapper =  mount(<WrapperComponent
+      {...props}
+      validation={
+        {
+          validator: () => {
+            return new Promise(resolve => resolve('error message as resolved value'));
+          }
+        }
+      }
+    />);
+    await wrapper.instance().validate(result)
+    expect(wrapper.state()).toMatchObject({
+      error: true,
+      errorInfo: [{
+        message: 'error message as resolved value'
+      }]
+    })
+  });
+
+  it('should use customized validator with a rejected Promise', async () => {
+    const result = {
+      data: {
+        0: { url: ''}
+      }
+    };
+    const wrapper =  mount(<WrapperComponent
+      {...props}
+      validation={
+        {
+          validator: () => {
+            return new Promise((resolve, reject) => {
+              reject(new Error('Rejected promise'));
+          })
+          }
+        }
+      }
+    />);
+    await wrapper.instance().validate(result)
+    expect(wrapper.state()).toMatchObject({
+      error: true,
+      errorInfo: [{
+        message: 'Error: Rejected promise'
+      }]
+    })
+  });
+
+  it('should use customized validator with a Promise<void>', async () => {
+    const result = {
+      data: {
+        0: { url: ''}
+      }
+    };
+    const wrapper =  mount(<WrapperComponent
+      {...props}
+      validation={
+        {
+          validator: () => { return new Promise(resolve => resolve())}
+        }
+      }
+    />);
+    await wrapper.instance().validate(result)
+    expect(wrapper.state()).toMatchObject({
+      error: false,
+      errorInfo: []
+    })
+  });
+
+  
   it('should removeOnDeploy not be called', () => {
     const wrapper = mount(<WrapperComponent
       {...props}

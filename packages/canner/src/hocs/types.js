@@ -1,4 +1,4 @@
-// @flow
+g// @flow
 import type {Action, ActionType} from '../action/types';
 import type {Query} from '../query';
 import type RefId from 'canner-ref-id';
@@ -17,7 +17,7 @@ export type Subscribe = (key: string, callback: (data: any) => void) => Subscrip
 export type Deploy = (key: string, id?: string) => Promise<*>;
 export type OnDeploy = (key: string, callback: Function) => any;
 export type RemoveOnDeploy = (key: string, callbackId: string) => void;
-export type Validation = Object;
+export type Validation = {schema?: Object, erorrMessage?: string, validator?: (value: any) => string | Promise<string> | Promise<void> | void}
 export type UIParams = Object;
 export type Relation = Object;
 export type RenderChildren = any => React.Node

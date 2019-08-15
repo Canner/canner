@@ -3,9 +3,9 @@ import {Tooltip, Icon} from 'antd';
 import TableSelectColumn from "../components/columns/select";
 
 export const galleryValidation = {
-  validator: (content, reject) => {
+  validator: (content) => {
     if (content.length === 0) {
-      return reject("should at least have one photo");
+      return "should at least have one photo";
     }
   }
 };

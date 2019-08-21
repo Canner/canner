@@ -31,7 +31,7 @@ export default class RelationTree extends PureComponent {
     this.fetchData();
   }
 
-  UNSAFE_componentWillUnmount() {
+  componentWillUnmount() {
     if (this.subscription) {
       this.subscription.unsubscribe();
     }
